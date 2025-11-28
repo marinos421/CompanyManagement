@@ -34,6 +34,18 @@ public class User extends BaseEntity implements UserDetails {
     
     private Double salary; // e.g. 1500.00
 
+    // --- Personal Details (Employee Editable) ---
+    private String phoneNumber;
+    private String personalTaxId; // AFM
+    private String idNumber;      // Arithmos Taftotitas
+    private String address;       // Place of Origin / Address
+
+    @Lob
+    @Column(length = 1000000)
+    private byte[] avatar;        // Profile Picture
+    
+    private String avatarContentType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
