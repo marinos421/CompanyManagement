@@ -54,6 +54,7 @@ public class AuthenticationService {
                 .token(jwtToken)
                 .role(user.getRole().name())
                 .companyName(savedCompany.getName())
+                .email(user.getEmail())
                 .build();
     }
 
@@ -74,6 +75,7 @@ public class AuthenticationService {
                 .token(jwtToken)
                 .role(user.getRole().name())
                 .companyName(user.getCompany().getName())
+                .email(user.getEmail())
                 .build();
     }
 }

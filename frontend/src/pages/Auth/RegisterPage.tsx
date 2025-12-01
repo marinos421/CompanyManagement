@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AuthService, { RegisterData } from "../../services/auth/auth.service";
+import AuthService, { RegisterData } from "../../services/Auth/auth.service";
 import { useNavigate, Link } from "react-router-dom";
 
 const RegisterPage = () => {

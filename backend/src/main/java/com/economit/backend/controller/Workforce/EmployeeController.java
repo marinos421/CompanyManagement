@@ -56,4 +56,9 @@ public class EmployeeController {
         EmployeeDto updatedProfile = employeeService.updateMe(phoneNumber, personalTaxId, idNumber, address, newPassword, avatar);
         return ResponseEntity.ok(updatedProfile);
     }
+
+    @GetMapping("/chat-users")
+    public ResponseEntity<List<EmployeeDto>> getChatUsers() {
+        return ResponseEntity.ok(employeeService.getAllCompanyUsers());
+    }
 }

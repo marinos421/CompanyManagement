@@ -95,6 +95,13 @@ public class EmployeeService {
         User savedUser = userRepository.save(user);
         return mapToDto(savedUser);
     }
+
+    public List<EmployeeDto> getAllCompanyUsers() {
+        User user = getCurrentUser();
+        return user.getCompany().getUsers().stream()
+                .map(this::mapToDto) // Δεν κάνουμε φίλτρο ρόλου, τους θέλουμε όλους
+                .collect(Collectors.toList());
+    }    
     
     
 

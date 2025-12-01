@@ -44,6 +44,17 @@ const Sidebar = () => {
       label: "Company Profile", 
       roles: ["COMPANY_ADMIN"] // Μόνο Admin
     },
+    { 
+      path: "/calendar", 
+      label: "Calendar", 
+      roles: ["COMPANY_ADMIN", "EMPLOYEE"] 
+    },
+    { 
+      path: "/chat", 
+      label: "Messages", 
+      roles: ["COMPANY_ADMIN", "EMPLOYEE"] 
+    },
+
     // Θα προσθέσουμε αργότερα: "My Profile" & "My Tasks" για Employees
   ];
 

@@ -59,6 +59,11 @@ const remove = async (id: number) => {
   await axios.delete(`${API_URL}/${id}`, { headers: getAuthHeader() });
 };
 
+const getChatUsers = async () => {
+  const response = await axios.get(`${API_URL}/chat-users`, { headers: getAuthHeader() });
+  return response.data;
+};
+
 
 const EmployeeService = {
   getAll,
@@ -67,6 +72,7 @@ const EmployeeService = {
   remove,
   getMe,
   updateMe,
+  getChatUsers,
 };
 
 export default EmployeeService;

@@ -10,6 +10,10 @@ import EmployeeDashboard from "./pages/Workforce/EmployeeDashboard";
 import AuthService from "./services/Auth/auth.service";
 import TasksPage from "./pages/Workforce/TaskPage";
 import EmployeeProfilePage from "./pages/Workforce/EmployeeProfilePage";
+import CalendarPage from "./pages/Calendar/CalendarPage";
+import ChatPage from "./pages/Chat/ChatPage";
+
+
 
 const DashboardDecider = () => {
   const role = AuthService.getUserRole();
@@ -39,6 +43,8 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/profile" element={<CompanyProfilePage />} />
           <Route path="/my-profile" element={<EmployeeProfilePage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/chat" element={<ChatPage />} />
         </Route>
 
       </Routes>
