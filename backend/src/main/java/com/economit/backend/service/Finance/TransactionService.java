@@ -3,6 +3,8 @@ package com.economit.backend.service.Finance;
 import com.economit.backend.dto.Finance.TransactionDto;
 import com.economit.backend.model.Company;
 import com.economit.backend.model.Transaction;
+import com.economit.backend.model.TransactionCategory;
+import com.economit.backend.model.TransactionType;
 import com.economit.backend.model.User;
 import com.economit.backend.repository.Auth.UserRepository;
 import com.economit.backend.repository.Finance.TransactionRepository;
@@ -12,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -90,5 +93,28 @@ public class TransactionService {
         transaction.setStatus(com.economit.backend.model.TransactionStatus.COMPLETED);
         Transaction saved = transactionRepository.save(transaction);
         return mapToDto(saved);
+    }
+
+
+    public List<TransactionDto> searchTransactions(
+            TransactionType type, 
+            TransactionCategory category, 
+            LocalDate startDate, 
+            LocalDate endDate
+    ) {
+        User user = getCurrentUser();
+        
+        // Καλούμε το Search Query του Repository
+        List<Transaction> transactions = transactionRepository.search(
+                user.getCompany().getId(),
+                type,
+                category,
+                startDate,
+                endDate
+        );
+
+        return transactions.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
 }

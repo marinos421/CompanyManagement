@@ -1,6 +1,8 @@
 package com.economit.backend.controller.Finance;
 
 import com.economit.backend.dto.Finance.TransactionDto;
+import com.economit.backend.model.TransactionCategory;
+import com.economit.backend.model.TransactionType;
 import com.economit.backend.service.Finance.TransactionService;
 
 import com.economit.backend.service.Workforce.PayrollService;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -20,8 +23,14 @@ public class TransactionController {
     private final PayrollService payrollService;
 
     @GetMapping
-    public ResponseEntity<List<TransactionDto>> getAll() {
-        return ResponseEntity.ok(transactionService.getAllTransactions());
+    public ResponseEntity<List<TransactionDto>> getAll(
+            @RequestParam(required = false) TransactionType type,
+            @RequestParam(required = false) TransactionCategory category,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate
+    ) {
+        // Αν δεν στείλει τίποτα, θα φέρει τα πάντα (όπως πριν)
+        return ResponseEntity.ok(transactionService.searchTransactions(type, category, startDate, endDate));
     }
 
     @PostMapping
@@ -45,4 +54,6 @@ public class TransactionController {
         payrollService.createPayrollTransactions();
         return ResponseEntity.ok().build();
     }
+
+
 }

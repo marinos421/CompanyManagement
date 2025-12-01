@@ -24,8 +24,18 @@ const getAuthHeader = () => {
   return {};
 };
 
-const getAll = async () => {
-  const response = await axios.get(API_URL, { headers: getAuthHeader() });
+const getAll = async (filters?: any) => {
+  // Μετατροπή των φίλτρων σε URL parameters
+  const params = new URLSearchParams();
+  
+  if (filters) {
+    if (filters.type) params.append("type", filters.type);
+    if (filters.category) params.append("category", filters.category);
+    if (filters.startDate) params.append("startDate", filters.startDate);
+    if (filters.endDate) params.append("endDate", filters.endDate);
+  }
+
+  const response = await axios.get(`${API_URL}?${params.toString()}`, { headers: getAuthHeader() });
   return response.data;
 };
 

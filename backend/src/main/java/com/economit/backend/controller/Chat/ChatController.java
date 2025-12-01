@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import com.economit.backend.model.ChatMessage;
 import com.economit.backend.service.Chat.ChatService;
+import com.economit.backend.service.Notification.NotificationService;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ public class ChatController {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatService chatService;
+    private final NotificationService notificationService;
 
     // WebSocket Endpoint: Λαμβάνει μήνυμα από τον Client
     @MessageMapping("/chat")
@@ -28,6 +30,11 @@ public class ChatController {
         ChatMessage saved = chatService.save(chatMessage);
         messagingTemplate.convertAndSend("/topic/messages/" + chatMessage.getRecipientId(), saved);
         messagingTemplate.convertAndSend("/topic/messages/" + chatMessage.getSenderId(), saved);
+        notificationService.send(
+            chatMessage.getRecipientId(),
+            "New message from " + chatMessage.getSenderId(),
+            "CHAT"
+        );
     }
 
     // REST Endpoint: Φέρνει το ιστορικό μηνυμάτων (για όταν ανοίγεις το chat)

@@ -3,6 +3,7 @@ package com.economit.backend.service.Calendar;
 import com.economit.backend.dto.Calendar.CompanyEventDto;
 import com.economit.backend.model.*;
 import com.economit.backend.repository.Calendar.CompanyEventRepository;
+import com.economit.backend.service.Notification.NotificationService;
 import com.economit.backend.repository.Auth.UserRepository; // Τσέκαρε αν το UserRepository είναι στο Auth
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +19,7 @@ public class CompanyEventService {
 
     private final CompanyEventRepository eventRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -49,7 +51,19 @@ public class CompanyEventService {
                 .type(request.getType())
                 .company(user.getCompany())
                 .build();
-
+        
+        CompanyEvent savedEvent = eventRepository.save(event);
+        List<User> allUsers = user.getCompany().getUsers();
+        for (User u : allUsers) {
+            // Δεν στέλνουμε στον εαυτό μας (Admin)
+            if (!u.getEmail().equals(user.getEmail())) {
+                notificationService.send(
+                    u.getEmail(),
+                    "New Event: " + savedEvent.getTitle(),
+                    "EVENT"
+                );
+            }
+        }
         return mapToDto(eventRepository.save(event));
     }
 

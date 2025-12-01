@@ -4,6 +4,7 @@ import com.economit.backend.dto.Workforce.TaskDto;
 import com.economit.backend.model.*;
 import com.economit.backend.repository.Auth.UserRepository;
 import com.economit.backend.repository.Workforce.TaskRepository;
+import com.economit.backend.service.Notification.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,6 +20,7 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -55,7 +57,13 @@ public class TaskService {
                 .company(admin.getCompany())
                 .build();
 
-        return mapToDto(taskRepository.save(task));
+        taskRepository.save(task);
+        notificationService.send(
+            assignedEmp.getEmail(), 
+            "New Task Assigned: " + task.getTitle(), 
+            "TASK"
+        );
+        return mapToDto(task);
     }
 
     public TaskDto updateStatus(Long taskId, TaskStatus status) {
