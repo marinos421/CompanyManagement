@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import CompanyService, { CompanyProfile } from "../../services/Company/company.service";
+
+// Components
+import Button from "../../components/Button";
+import Input from "../../components/Input";
 
 const CompanyProfilePage = () => {
   const [profile, setProfile] = useState<CompanyProfile>({
@@ -19,11 +23,21 @@ const CompanyProfilePage = () => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState({ type: "", text: "" });
+  
+  // Notification State
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     loadProfile();
   }, []);
+
+  // Auto-hide notification
+  useEffect(() => {
+    if (notification) {
+        const timer = setTimeout(() => setNotification(null), 3000);
+        return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const loadProfile = async () => {
     try {
@@ -53,11 +67,9 @@ const CompanyProfilePage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage({ type: "", text: "" });
-
+    
     const formData = new FormData();
     formData.append("name", profile.name);
-    // Χρησιμοποιούμε || "" για να μην στείλουμε ποτέ 'undefined' ή 'null'
     formData.append("taxId", profile.taxId || "");
     formData.append("phone", profile.phone || "");
     formData.append("website", profile.website || "");
@@ -72,116 +84,92 @@ const CompanyProfilePage = () => {
 
     try {
       await CompanyService.updateProfile(formData);
-      setMessage({ type: "success", text: "Profile updated successfully!" });
+      setNotification({ message: "Profile updated successfully!", type: "success" });
     } catch (error) {
-      console.error(error); // Για να δούμε το error στην κονσόλα αν ξανασυμβεί
-      setMessage({ type: "error", text: "Failed to update profile." });
+      setNotification({ message: "Failed to update profile.", type: "error" });
     }
   };
 
   if (loading) return <div className="text-white p-8">Loading profile...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-white mb-6">Company Settings</h2>
-
-      {message.text && (
-        <div className={`p-4 mb-6 rounded-lg ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-          {message.text}
+    <div className="max-w-4xl mx-auto relative">
+      
+      {/* NOTIFICATION BANNER */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-[60] px-6 py-3 rounded-lg shadow-xl text-white font-medium animate-bounce ${
+            notification.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+        }`}>
+            {notification.message}
         </div>
       )}
 
+      <h2 className="text-2xl font-bold text-white mb-6">Company Settings</h2>
+
       <form onSubmit={handleSubmit} className="space-y-8">
         
-        {/* Branding & Info */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <h3 className="text-lg font-semibold text-white mb-4 border-b border-slate-700 pb-2">Branding & Info</h3>
+        {/* SECTION 1: Branding & Basic Info */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+          <h3 className="text-lg font-semibold text-white mb-6 border-b border-slate-700 pb-2">Branding & Info</h3>
           
           <div className="flex flex-col md:flex-row gap-8">
             
-            {/* Logo Upload */}
+            {/* Logo Upload Area (Custom UI kept for UX) */}
             <div className="flex flex-col items-center space-y-4">
-              <div className="w-32 h-32 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-slate-900 relative group">
+              <div className="w-32 h-32 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-slate-900 relative group transition hover:border-blue-500">
                 {previewUrl ? (
                   <img src={previewUrl} alt="Company Logo" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-slate-500 text-sm">No Logo</span>
                 )}
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
-                  <span className="text-white text-xs">Change</span>
+                {/* Overlay on Hover */}
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
+                  <span className="text-white text-xs font-bold">Change</span>
                 </div>
                 <input 
                   type="file" 
                   accept="image/*" 
                   onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  title="Upload Logo" // Προσθήκη για να φύγει το Accessibility Error
-                  aria-label="Upload Company Logo" // Προσθήκη για Accessibility
+                  className="absolute inset-0 opacity-0 cursor-pointer" 
+                  title="Upload Logo"
                 />
               </div>
               <span className="text-xs text-slate-400">Click to upload logo</span>
             </div>
 
-            {/* Basic Fields - Προσθήκη || "" στα values */}
+            {/* Basic Fields using <Input> */}
             <div className="flex-1 grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Company Name *</label>
-                <input name="name" value={profile.name || ""} onChange={handleChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" />
-              </div>
+              <Input label="Company Name *" name="name" value={profile.name || ""} onChange={handleChange} required />
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Tax ID (AFM)</label>
-                  <input name="taxId" value={profile.taxId || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 123456789" />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Phone</label>
-                  <input name="phone" value={profile.phone || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="+30 210..." />
-                </div>
+                <Input label="Tax ID (AFM)" name="taxId" value={profile.taxId || ""} onChange={handleChange} placeholder="e.g. 123456789" />
+                <Input label="Phone" name="phone" value={profile.phone || ""} onChange={handleChange} placeholder="+30 210..." />
               </div>
 
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Website</label>
-                <input name="website" value={profile.website || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="https://..." />
-              </div>
+              <Input label="Website" name="website" value={profile.website || ""} onChange={handleChange} placeholder="https://..." />
             </div>
           </div>
         </div>
 
-        {/* Address - Προσθήκη || "" στα values */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <h3 className="text-lg font-semibold text-white mb-4 border-b border-slate-700 pb-2">Location Details</h3>
+        {/* SECTION 2: Address using <Input> */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+          <h3 className="text-lg font-semibold text-white mb-6 border-b border-slate-700 pb-2">Location Details</h3>
           
           <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">Street Address</label>
-              <input name="street" value={profile.street || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Leoforos Kifisias 10" />
-            </div>
+            <Input label="Street Address" name="street" value={profile.street || ""} onChange={handleChange} placeholder="Leoforos Kifisias 10" />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">City</label>
-                <input name="city" value={profile.city || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Athens" />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Zip Code</label>
-                <input name="zipCode" value={profile.zipCode || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="11526" />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Country</label>
-                <input name="country" value={profile.country || ""} onChange={handleChange} className="w-full bg-slate-700 border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Greece" />
-              </div>
+              <Input label="City" name="city" value={profile.city || ""} onChange={handleChange} placeholder="Athens" />
+              <Input label="Zip Code" name="zipCode" value={profile.zipCode || ""} onChange={handleChange} placeholder="11526" />
+              <Input label="Country" name="country" value={profile.country || ""} onChange={handleChange} placeholder="Greece" />
             </div>
           </div>
         </div>
 
         <div className="flex justify-end">
-            <button 
-                type="submit" 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition"
-            >
+            <Button type="submit" size="md">
                 Save Changes
-            </button>
+            </Button>
         </div>
 
       </form>

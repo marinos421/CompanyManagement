@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import EmployeeService, { Employee } from "../../services/Workforce/employee.service";
+
+// Components
+import Button from "../../components/Button";
+import Input from "../../components/Input";
+import Modal from "../../components/Modal";
 
 const EmployeeProfilePage = () => {
   const [profile, setProfile] = useState<Employee | null>(null);
@@ -98,7 +103,7 @@ const EmployeeProfilePage = () => {
       
       {/* NOTIFICATION BANNER */}
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-xl text-white font-medium animate-bounce ${
+        <div className={`fixed top-4 right-4 z-[60] px-6 py-3 rounded-lg shadow-xl text-white font-medium animate-bounce ${
             notification.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
             {notification.message}
@@ -110,12 +115,9 @@ const EmployeeProfilePage = () => {
             <h2 className="text-3xl font-bold text-white mb-2">My Profile</h2>
             <p className="text-slate-400">Manage your personal information</p>
         </div>
-        <button 
-            onClick={handleEditClick}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-lg transition"
-        >
+        <Button onClick={handleEditClick}>
             Edit Profile
-        </button>
+        </Button>
       </div>
 
       <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
@@ -198,62 +200,41 @@ const EmployeeProfilePage = () => {
       </div>
 
       {/* EDIT MODAL */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
-                <h3 className="text-xl font-bold text-white mb-6">Edit Profile</h3>
-                
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    
-                    {/* Image Upload */}
-                    <div className="flex flex-col items-center mb-6">
-                        <div className="w-24 h-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-slate-900 relative group cursor-pointer">
-                            {previewUrl ? (
-                                <img src={previewUrl} className="w-full h-full object-cover" />
-                            ) : (
-                                <span className="text-slate-500 text-sm">No Photo</span>
-                            )}
-                            <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
-                        </div>
-                        <span className="text-xs text-slate-400 mt-2">Click to change photo</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs text-slate-400 mb-1">Mobile Phone</label>
-                            <input name="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="+30..." />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-slate-400 mb-1">ID Number</label>
-                            <input name="idNumber" value={formData.idNumber} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="AK..." />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs text-slate-400 mb-1">Tax ID (AFM)</label>
-                        <input name="personalTaxId" value={formData.personalTaxId} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="123456789" />
-                    </div>
-
-                    <div>
-                        <label className="block text-xs text-slate-400 mb-1">Address / Origin</label>
-                        <input name="address" value={formData.address} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="Street, City, Country" />
-                    </div>
-
-                    <hr className="border-slate-700 my-4" />
-
-                    <div>
-                        <label className="block text-xs text-blue-400 mb-1 font-bold">New Password (Optional)</label>
-                        <input type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="Leave empty to keep current" />
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
-                        <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-slate-400 hover:text-white transition">Cancel</button>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-lg">Save Changes</button>
-                    </div>
-                </form>
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Profile">
+        <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* Image Upload Custom UI */}
+            <div className="flex flex-col items-center mb-6">
+                <div className="w-24 h-24 rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center overflow-hidden bg-slate-900 relative group cursor-pointer hover:border-blue-500 transition">
+                    {previewUrl ? (
+                        <img src={previewUrl} className="w-full h-full object-cover" />
+                    ) : (
+                        <span className="text-slate-500 text-sm">No Photo</span>
+                    )}
+                    <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" title="Change Avatar" />
+                </div>
+                <span className="text-xs text-slate-400 mt-2">Click to change photo</span>
             </div>
-        </div>
-      )}
+
+            <div className="grid grid-cols-2 gap-4">
+                <Input label="Mobile Phone" name="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} placeholder="+30..." />
+                <Input label="ID Number" name="idNumber" value={formData.idNumber} onChange={handleInputChange} placeholder="AK..." />
+            </div>
+
+            <Input label="Tax ID (AFM)" name="personalTaxId" value={formData.personalTaxId} onChange={handleInputChange} placeholder="123456789" />
+            <Input label="Address / Origin" name="address" value={formData.address} onChange={handleInputChange} placeholder="Street, City, Country" />
+
+            <hr className="border-slate-700 my-4" />
+
+            <Input label="New Password (Optional)" type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange} placeholder="Leave empty to keep current" />
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+                <Button variant="secondary" onClick={() => setShowEditModal(false)} type="button">Cancel</Button>
+                <Button type="submit">Save Changes</Button>
+            </div>
+        </form>
+      </Modal>
+
     </div>
   );
 };

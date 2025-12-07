@@ -3,13 +3,19 @@ import { Calendar, momentLocalizer, SlotInfo, Navigate, Views, View } from "reac
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
-import EventService, {CompanyEvent} from "../../services/Calendar/event.service";
-import AuthService from "../../services/Auth/auth.service";
+import EventService, { CompanyEvent } from "../../services/calendar/event.service";
+import AuthService from "../../services/auth/auth.service";
+
+// Components
+import Button from "../../components/Button";
+import Input from "../../components/Input";
+import Select from "../../components/Select";
+import Modal from "../../components/Modal";
 
 // Setup Moment Localizer
 const localizer = momentLocalizer(moment);
 
-// --- CUSTOM TOOLBAR (FIXED DYNAMIC LABEL) ---
+// --- CUSTOM TOOLBAR ---
 const CustomToolbar = (toolbar: any) => {
   const goToBack = () => toolbar.onNavigate(Navigate.PREVIOUS);
   const goToNext = () => toolbar.onNavigate(Navigate.NEXT);
@@ -19,22 +25,15 @@ const CustomToolbar = (toolbar: any) => {
   const setWeekView = () => toolbar.onView(Views.WEEK);
   const setDayView = () => toolbar.onView(Views.DAY);
 
-  // ΔΥΝΑΜΙΚΗ ΕΤΙΚΕΤΑ ΑΝΑΛΟΓΑ ΜΕ ΤΟ VIEW
   const label = () => {
     const date = moment(toolbar.date);
-    
     if (toolbar.view === 'day') {
-        // Π.χ. Wednesday, 25 December 2025
         return <span className="text-xl font-bold text-white">{date.format('dddd, D MMMM YYYY')}</span>;
-    } 
-    else if (toolbar.view === 'week') {
-        // Π.χ. Dec 01 - Dec 07, 2025
+    } else if (toolbar.view === 'week') {
         const start = date.clone().startOf('week');
         const end = date.clone().endOf('week');
         return <span className="text-lg font-bold text-white">{start.format('MMM D')} - {end.format('MMM D, YYYY')}</span>;
-    } 
-    else {
-        // Π.χ. December 2025
+    } else {
         return <span className="text-xl font-bold text-white capitalize">{date.format('MMMM YYYY')}</span>;
     }
   };
@@ -43,17 +42,17 @@ const CustomToolbar = (toolbar: any) => {
     <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
       
       <div className="flex gap-2">
-        <button onClick={goToBack} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition">Back</button>
-        <button onClick={goToCurrent} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition shadow">Today</button>
-        <button onClick={goToNext} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition">Next</button>
+        <Button size="sm" variant="secondary" onClick={goToBack}>Back</Button>
+        <Button size="sm" onClick={goToCurrent}>Today</Button>
+        <Button size="sm" variant="secondary" onClick={goToNext}>Next</Button>
       </div>
 
       <div>{label()}</div>
 
       <div className="flex gap-2">
-        <button onClick={setMonthView} className={`px-3 py-1 rounded text-sm transition ${toolbar.view === 'month' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'}`}>Month</button>
-        <button onClick={setWeekView} className={`px-3 py-1 rounded text-sm transition ${toolbar.view === 'week' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'}`}>Week</button>
-        <button onClick={setDayView} className={`px-3 py-1 rounded text-sm transition ${toolbar.view === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'}`}>Day</button>
+        <Button size="sm" variant={toolbar.view === 'month' ? 'primary' : 'secondary'} onClick={setMonthView}>Month</Button>
+        <Button size="sm" variant={toolbar.view === 'week' ? 'primary' : 'secondary'} onClick={setWeekView}>Week</Button>
+        <Button size="sm" variant={toolbar.view === 'day' ? 'primary' : 'secondary'} onClick={setDayView}>Day</Button>
       </div>
     </div>
   );
@@ -67,6 +66,7 @@ const CalendarPage = () => {
   const [date, setDate] = useState(new Date());
 
   const [showModal, setShowModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CompanyEvent | null>(null);
   
@@ -105,22 +105,21 @@ const CalendarPage = () => {
 
   const handleSelectSlot = ({ start, end }: SlotInfo) => {
     if (!isAdmin) return;
-    // Όταν κάνεις κλικ σε Day view, συνήθως θες event διάρκειας 1 ώρας, όχι 0 λεπτών
-    // Αν το end είναι ίδιο με start, προσθέτουμε 1 ώρα
     let endDate = end;
     if (moment(start).isSame(end)) {
         endDate = moment(start).add(1, 'hour').toDate();
     }
-    
     setFormData({ ...formData, startTime: start, endTime: endDate });
     setShowModal(true);
   };
 
   const handleSelectEvent = (event: CompanyEvent) => {
     setSelectedEvent(event);
+    setShowDetailsModal(true);
   };
 
   const handleDeleteClick = () => {
+    setShowDetailsModal(false); // Close details first
     setShowDeleteModal(true);
   };
 
@@ -171,6 +170,13 @@ const CalendarPage = () => {
     return moment(date).format('dddd, D MMMM YYYY - HH:mm');
   };
 
+  const eventTypeOptions = [
+      { value: "MEETING", label: "Meeting" },
+      { value: "EVENT", label: "Corporate Event" },
+      { value: "HOLIDAY", label: "Holiday" },
+      { value: "OTHER", label: "Other" }
+  ];
+
   return (
     <div className="h-[85vh] flex flex-col text-slate-300">
       
@@ -192,61 +198,56 @@ const CalendarPage = () => {
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
           eventPropGetter={eventStyleGetter}
-          
           view={view}
           date={date}
           onNavigate={onNavigate}
           onView={onView}
-          
           views={["month", "week", "day"]}
           components={{ toolbar: CustomToolbar }}
         />
       </div>
 
       {/* CREATE MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-md shadow-2xl">
-                <h3 className="text-xl font-bold text-white mb-4">New Event</h3>
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <input placeholder="Title" required className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:border-blue-500" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-                    <textarea placeholder="Description" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white h-20 outline-none focus:border-blue-500" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-                    <input placeholder="Location" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:border-blue-500" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
-                    
-                    <select className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:border-blue-500" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
-                        <option value="MEETING">Meeting</option>
-                        <option value="EVENT">Corporate Event</option>
-                        <option value="HOLIDAY">Holiday</option>
-                        <option value="OTHER">Other</option>
-                    </select>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                        <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-400 hover:text-white transition">Cancel</button>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition">Create</button>
-                    </div>
-                </form>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="New Event">
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <Input label="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
+            
+            <div>
+                <label className="block text-xs text-slate-400 mb-1 uppercase font-bold">Description</label>
+                <textarea 
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 h-20"
+                    value={formData.description} 
+                    onChange={e => setFormData({...formData, description: e.target.value})} 
+                />
             </div>
-        </div>
-      )}
+            
+            <Input label="Location" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
+            
+            <Select 
+                label="Type" 
+                options={eventTypeOptions} 
+                value={formData.type} 
+                onChange={e => setFormData({...formData, type: e.target.value as any})} 
+            />
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
+                <Button variant="secondary" onClick={() => setShowModal(false)} type="button">Cancel</Button>
+                <Button type="submit">Create</Button>
+            </div>
+        </form>
+      </Modal>
 
       {/* DETAILS MODAL */}
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-sm shadow-2xl relative">
-                
-                <button onClick={() => setSelectedEvent(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1 rounded-full hover:bg-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                </button>
-                
-                <div className="mb-4">
-                    <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${selectedEvent.type === 'HOLIDAY' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>{selectedEvent.type}</span>
+      <Modal isOpen={showDetailsModal} onClose={() => setShowDetailsModal(false)} title={selectedEvent?.title || "Event Details"}>
+        {selectedEvent && (
+            <div className="space-y-4">
+                <div className="mb-2">
+                    <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${selectedEvent.type === 'HOLIDAY' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {selectedEvent.type}
+                    </span>
                 </div>
                 
-                <h3 className="text-xl font-bold text-white mb-2">{selectedEvent.title}</h3>
-                
-                <div className="space-y-4 text-sm text-slate-300 mt-4 bg-slate-900/50 p-4 rounded-lg">
+                <div className="space-y-4 text-sm text-slate-300 bg-slate-900/50 p-4 rounded-lg">
                     <div className="flex items-start gap-3">
                         <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         <div className="flex flex-col">
@@ -275,30 +276,30 @@ const CalendarPage = () => {
                 )}
 
                 {isAdmin && (
-                    <div className="mt-6 flex justify-end">
-                        <button onClick={handleDeleteClick} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg shadow-red-500/20 flex items-center gap-2">
+                    <div className="mt-6 pt-4 border-t border-slate-700 flex justify-end">
+                        <Button variant="danger" size="sm" onClick={handleDeleteClick}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             Delete Event
-                        </button>
+                        </Button>
                     </div>
                 )}
             </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* DELETE CONFIRMATION MODAL */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-sm shadow-2xl text-center">
-                <h3 className="text-xl font-bold text-white mb-2">Delete Event?</h3>
-                <p className="text-slate-400 mb-6">Are you sure? This cannot be undone.</p>
-                <div className="flex justify-center gap-3">
-                    <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition">Cancel</button>
-                    <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition shadow-lg">Yes, Delete</button>
-                </div>
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Event?">
+        <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </div>
+            <p className="text-slate-400 mb-6">Are you sure? This cannot be undone.</p>
+            <div className="flex justify-center gap-3">
+                <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+                <Button variant="danger" onClick={confirmDelete}>Yes, Delete</Button>
             </div>
         </div>
-      )}
+      </Modal>
 
       <style>{`
         .rbc-calendar { color: #cbd5e1; font-family: inherit; }

@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import TransactionService, { Transaction, INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../services/Finance/transaction.service";
+import { exportToCSV, exportToPDF } from "../../Utils/export.utils";
+import AuthService from "../../services/Auth/auth.service";
+
+// Components
+import Button from "../../components/Button";
+import Input from "../../components/Input";
+import Modal from "../../components/Modal";
+import Select from "../../components/Select";
+import StatusBadge from "../../components/StatusBadge";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF", "#FF4560"];
 const OVERVIEW_COLORS = ["#10b981", "#f43f5e"];
@@ -9,6 +18,9 @@ const TransactionsPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Export Dropdown State
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   // Filter State
   const [filters, setFilters] = useState({
     type: "",
@@ -19,6 +31,10 @@ const TransactionsPage = () => {
 
   // Modal States
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [idToDelete, setIdToDelete] = useState<number | null>(null);
+  const [chartType, setChartType] = useState<"INCOME" | "EXPENSE" | "OVERVIEW">("OVERVIEW");
+
   const [formData, setFormData] = useState<Transaction>({
     type: "EXPENSE",
     amount: 0,
@@ -27,10 +43,6 @@ const TransactionsPage = () => {
     description: "",
     status: "COMPLETED"
   });
-  
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [idToDelete, setIdToDelete] = useState<number | null>(null);
-  const [chartType, setChartType] = useState<"INCOME" | "EXPENSE" | "OVERVIEW">("OVERVIEW");
 
   useEffect(() => {
     loadTransactions();
@@ -65,6 +77,18 @@ const TransactionsPage = () => {
   const clearFilters = () => {
     setFilters({ type: "", category: "", startDate: "", endDate: "" });
     TransactionService.getAll().then(data => setTransactions(data));
+  };
+
+  // --- EXPORT HANDLERS ---
+  const handleExportCSV = () => {
+    exportToCSV(transactions);
+    setShowExportMenu(false);
+  };
+
+  const handleExportPDF = () => {
+    const user = AuthService.getCurrentUser();
+    exportToPDF(transactions, user?.companyName || "EconomIT");
+    setShowExportMenu(false);
   };
 
   // --- Logic ---
@@ -114,18 +138,63 @@ const TransactionsPage = () => {
   const handleDeleteClick = (id: number) => { setIdToDelete(id); setShowDeleteModal(true); };
   const confirmDelete = async () => { if (idToDelete) { await TransactionService.remove(idToDelete); setTransactions(transactions.filter(t => t.id !== idToDelete)); setShowDeleteModal(false); setIdToDelete(null); } };
 
+  // --- OPTIONS FOR SELECTS ---
+  const typeOptions = [
+      { value: "ALL", label: "All Types" },
+      { value: "INCOME", label: "Income" },
+      { value: "EXPENSE", label: "Expense" }
+  ];
+
+  const categoryOptions = [
+      { value: "ALL", label: "All Categories" },
+      ...[...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES].map(c => ({ value: c, label: c }))
+  ];
+  
+  // Options for Modal (Create)
+  const modalCategoryOptions = (formData.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => ({ value: c, label: c }));
+  const statusOptions = [
+      { value: "COMPLETED", label: "Completed (Paid)" },
+      { value: "PENDING", label: "Pending (Unpaid)" }
+  ];
+
   return (
     <div className="w-full space-y-6">
       
-      {/* Header & Add Button */}
+      {/* Header & Buttons */}
       <div className="flex justify-between items-center">
         <div>
             <h2 className="text-3xl font-bold text-white">Transactions</h2>
             <p className="text-slate-400">Track your cash flow</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-lg transition">
-            + Add Transaction
-        </button>
+        
+        <div className="flex gap-3 relative">
+            
+            {/* EXPORT BUTTON & MENU */}
+            <div className="relative">
+                <Button variant="secondary" onClick={() => setShowExportMenu(!showExportMenu)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                    </svg>
+                    Export
+                </Button>
+                
+                {/* Dropdown */}
+                {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+                        <button onClick={handleExportPDF} className="w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 flex items-center gap-2">
+                            <span className="text-red-400">??</span> PDF Report
+                        </button>
+                        <button onClick={handleExportCSV} className="w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 flex items-center gap-2">
+                            <span className="text-green-400">??</span> CSV (Excel)
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <Button onClick={() => setShowModal(true)}>
+                + Add Transaction
+            </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -152,40 +221,36 @@ const TransactionsPage = () => {
         {/* Transaction List with Integrated Filters */}
         <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl flex flex-col h-full">
             
-            {/* --- TABLE HEADER WITH FILTERS --- */}
+            {/* Header + Filters */}
             <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex flex-col gap-4">
                 <div className="flex justify-between items-center">
                     <h3 className="font-bold text-white text-lg">Transaction List</h3>
                 </div>
                 
-                {/* Filter Toolbar */}
                 <div className="flex flex-wrap gap-2 items-end">
-                    <select name="type" value={filters.type} onChange={handleFilterChange} className="bg-slate-800 border border-slate-600 text-white text-xs rounded px-2 py-1.5 outline-none w-24 focus:border-blue-500">
-                        <option value="ALL">Type: All</option>
-                        <option value="INCOME">Income</option>
-                        <option value="EXPENSE">Expense</option>
-                    </select>
-
-                    <select name="category" value={filters.category} onChange={handleFilterChange} className="bg-slate-800 border border-slate-600 text-white text-xs rounded px-2 py-1.5 outline-none w-32 focus:border-blue-500">
-                        <option value="ALL">Cat: All</option>
-                        {[...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES].map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
-
-                    <div className="flex items-center gap-1">
-                        <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="bg-slate-800 border border-slate-600 text-white text-xs rounded px-2 py-1.5 outline-none focus:border-blue-500" />
-                        <span className="text-slate-500">-</span>
-                        <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="bg-slate-800 border border-slate-600 text-white text-xs rounded px-2 py-1.5 outline-none focus:border-blue-500" />
+                    <div className="w-32">
+                        <Select name="type" value={filters.type} options={typeOptions} onChange={handleFilterChange} className="py-1.5 text-xs" />
                     </div>
 
-                    <button onClick={applyFilters} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition flex items-center gap-1 ml-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
-                        Search
-                    </button>
-                    <button onClick={clearFilters} className="px-3 py-1.5 text-slate-400 hover:text-white text-xs border border-slate-600 rounded hover:bg-slate-700 transition">
-                        Clear
-                    </button>
+                    <div className="w-40">
+                        <Select name="category" value={filters.category} options={categoryOptions} onChange={handleFilterChange} className="py-1.5 text-xs" />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <Input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="py-1.5 text-xs" />
+                        <span className="text-slate-500">-</span>
+                        <Input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="py-1.5 text-xs" />
+                    </div>
+
+                    <div className="ml-auto flex gap-2">
+                         <Button onClick={applyFilters} size="sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                            Search
+                        </Button>
+                        <Button variant="outline" onClick={clearFilters} size="sm">
+                            Clear
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -213,9 +278,7 @@ const TransactionsPage = () => {
                                 </td>
                                 <td className="p-4 text-slate-400 max-w-[150px] truncate" title={t.description}>{t.description || "-"}</td>
                                 <td className="p-4">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${t.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                        {t.status}
-                                    </span>
+                                    <StatusBadge status={t.status} />
                                 </td>
                                 <td className={`p-4 text-right font-bold font-mono ${t.type === 'INCOME' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     <span className={t.status === 'PENDING' ? 'opacity-50' : ''}>
@@ -241,11 +304,18 @@ const TransactionsPage = () => {
         <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-xl p-6 flex flex-col items-center h-fit sticky top-6">
             <div className="flex justify-between items-center w-full mb-4">
                 <h3 className="font-bold text-white">Analytics</h3>
-                <select value={chartType} onChange={(e) => setChartType(e.target.value as any)} className="bg-slate-700 border border-slate-600 text-white text-xs rounded px-2 py-1 outline-none cursor-pointer hover:bg-slate-600">
-                    <option value="OVERVIEW">Overview</option>
-                    <option value="EXPENSE">Expenses</option>
-                    <option value="INCOME">Income</option>
-                </select>
+                <div className="w-32">
+                    <Select 
+                        value={chartType} 
+                        onChange={(e) => setChartType(e.target.value as any)} 
+                        className="py-1 text-xs"
+                        options={[
+                            { value: "OVERVIEW", label: "Overview" },
+                            { value: "EXPENSE", label: "Expenses" },
+                            { value: "INCOME", label: "Income" }
+                        ]}
+                    />
+                </div>
             </div>
             <div className="w-full h-64">
                 {getChartData().length > 0 ? (
@@ -264,37 +334,45 @@ const TransactionsPage = () => {
 
       </div>
 
-      {/* MODALS (Add/Delete) - IDIA */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 w-full max-w-md shadow-2xl">
-                <h3 className="text-xl font-bold text-white mb-6">Add Transaction</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2 bg-slate-700 p-1 rounded-lg">
-                        <button type="button" onClick={() => setFormData({...formData, type: "INCOME", category: INCOME_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Income</button>
-                        <button type="button" onClick={() => setFormData({...formData, type: "EXPENSE", category: EXPENSE_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'EXPENSE' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Expense</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-xs text-slate-400 mb-1 uppercase">Amount</label><input type="number" name="amount" value={formData.amount} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                        <div><label className="block text-xs text-slate-400 mb-1 uppercase">Date</label><input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                    </div>
-                    <div><label className="block text-xs text-slate-400 mb-1 uppercase">Category</label><select name="category" value={formData.category} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500">{(formData.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (<option key={cat} value={cat}>{cat}</option>))}</select></div>
-                    <div><label className="block text-xs text-slate-400 mb-1 uppercase">Description</label><input name="description" value={formData.description} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" placeholder="Optional notes..." /></div>
-                    <div><label className="block text-xs text-slate-400 mb-1 uppercase">Status</label><select name="status" value={formData.status} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500"><option value="COMPLETED">Completed (Paid)</option><option value="PENDING">Pending (Unpaid)</option></select></div>
-                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700"><button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-400 hover:text-white transition">Cancel</button><button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-lg">Save</button></div>
-                </form>
+      {/* CREATE MODAL */}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Add Transaction">
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 bg-slate-700 p-1 rounded-lg">
+                <button type="button" onClick={() => setFormData({...formData, type: "INCOME", category: INCOME_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Income</button>
+                <button type="button" onClick={() => setFormData({...formData, type: "EXPENSE", category: EXPENSE_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'EXPENSE' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Expense</button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+                <Input label="Amount (¤)" type="number" name="amount" value={formData.amount} onChange={handleInputChange} />
+                <Input label="Date" type="date" name="date" value={formData.date} onChange={handleInputChange} />
+            </div>
+
+            <Select label="Category" name="category" value={formData.category} options={modalCategoryOptions} onChange={handleInputChange} />
+            
+            <Input label="Description" name="description" value={formData.description} onChange={handleInputChange} placeholder="Optional notes..." />
+            
+            <Select label="Status" name="status" value={formData.status} options={statusOptions} onChange={handleInputChange} />
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+                <Button variant="secondary" onClick={() => setShowModal(false)} type="button">Cancel</Button>
+                <Button type="submit">Save</Button>
+            </div>
+        </form>
+      </Modal>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete?">
+        <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </div>
+            <p className="text-slate-400 mb-6">This action cannot be undone.</p>
+            <div className="flex justify-center gap-3">
+                <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+                <Button variant="danger" onClick={confirmDelete}>Delete</Button>
             </div>
         </div>
-      )}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-sm shadow-2xl text-center">
-                <h3 className="text-xl font-bold text-white mb-2">Delete?</h3>
-                <p className="text-slate-400 mb-6">This action cannot be undone.</p>
-                <div className="flex justify-center gap-3"><button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition">Cancel</button><button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition shadow-lg">Delete</button></div>
-            </div>
-        </div>
-      )}
+      </Modal>
 
     </div>
   );

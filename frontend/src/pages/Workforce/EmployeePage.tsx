@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import EmployeeService, { Employee } from "../../services/Workforce/employee.service";
 import TransactionService from "../../services/Finance/transaction.service";
+
+// Components
+import Button from "../../components/Button";
+import Input from "../../components/Input";
+import Modal from "../../components/Modal";
 
 const EmployeesPage = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -15,7 +20,7 @@ const EmployeesPage = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [employeeToDelete, setEmployeeToDelete] = useState<number | null>(null);
 
-  // Notification State (Toast message)
+  // Notification State (Local toast for simplicity or use Layout's via Context later)
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const [formData, setFormData] = useState<Employee>({
@@ -30,7 +35,7 @@ const EmployeesPage = () => {
     loadEmployees();
   }, []);
 
-  // Auto-hide notification after 3 seconds
+  // Auto-hide notification
   useEffect(() => {
     if (notification) {
         const timer = setTimeout(() => setNotification(null), 3000);
@@ -97,15 +102,14 @@ const EmployeesPage = () => {
   };
 
   // --- Payroll Handlers ---
-  
   const handleRunPayrollClick = () => {
-    setShowPayrollModal(true); // Open custom modal instead of window.confirm
+    setShowPayrollModal(true);
   };
 
   const confirmRunPayroll = async () => {
     try {
         await TransactionService.runPayroll();
-        setNotification({ message: "Payroll generated successfully! Check Transactions.", type: "success" });
+        setNotification({ message: "Payroll generated successfully!", type: "success" });
     } catch (error) {
         setNotification({ message: "Failed to generate payroll.", type: "error" });
     } finally {
@@ -138,9 +142,9 @@ const EmployeesPage = () => {
   return (
     <div className="w-full relative">
       
-      {/* NOTIFICATION BANNER (Toast) */}
+      {/* NOTIFICATION BANNER */}
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-xl text-white font-medium animate-bounce ${
+        <div className={`fixed top-4 right-4 z-[60] px-6 py-3 rounded-lg shadow-xl text-white font-medium animate-bounce ${
             notification.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
             {notification.message}
@@ -155,19 +159,13 @@ const EmployeesPage = () => {
         </div>
         
         <div className="flex gap-3">
-            <button 
-                onClick={handleRunPayrollClick}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium transition border border-slate-600 flex items-center gap-2"
-            >
+            <Button variant="secondary" onClick={handleRunPayrollClick}>
                  Run Payroll
-            </button>
+            </Button>
 
-            <button 
-                onClick={handleAddNew}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20 flex items-center gap-2"
-            >
+            <Button onClick={handleAddNew}>
                 + Add Employee
-            </button>
+            </Button>
         </div>
       </div>
 
@@ -203,18 +201,20 @@ const EmployeesPage = () => {
                             <td className="p-4 text-slate-400">{emp.email}</td>
                             <td className="p-4 text-slate-300 font-mono">{formatCurrency(emp.salary)}</td>
                             <td className="p-4 text-right">
-                                <button 
-                                    onClick={() => handleEdit(emp)}
-                                    className="text-blue-400 hover:text-blue-300 text-sm font-medium mr-3"
-                                >
-                                    Edit
-                                </button>
-                                <button 
-                                    onClick={() => handleDeleteClick(emp.id!)}
-                                    className="text-red-400 hover:text-red-300 text-sm font-medium"
-                                >
-                                    Delete
-                                </button>
+                                <div className="flex justify-end gap-2">
+                                    <button 
+                                        onClick={() => handleEdit(emp)}
+                                        className="text-blue-400 hover:text-blue-300 text-sm font-medium transition"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteClick(emp.id!)}
+                                        className="text-red-400 hover:text-red-300 text-sm font-medium transition"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     ))
@@ -224,70 +224,56 @@ const EmployeesPage = () => {
       </div>
 
       {/* CREATE / EDIT MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 w-full max-w-md shadow-2xl">
-                <h3 className="text-xl font-bold text-white mb-6">
-                    {editingId ? "Edit Employee" : "Add New Employee"}
-                </h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm text-slate-400 mb-1">First Name</label><input name="firstName" value={formData.firstName} onChange={handleInputChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                        <div><label className="block text-sm text-slate-400 mb-1">Last Name</label><input name="lastName" value={formData.lastName} onChange={handleInputChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                    </div>
-                    <div><label className="block text-sm text-slate-400 mb-1">Work Email</label><input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                    <div><label className="block text-sm text-slate-400 mb-1">Job Title</label><input name="jobTitle" value={formData.jobTitle} onChange={handleInputChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                    <div><label className="block text-sm text-slate-400 mb-1">Monthly Salary (¤)</label><input type="number" name="salary" value={formData.salary} onChange={handleInputChange} required className="w-full bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-300 hover:text-white transition">Cancel</button>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition">{editingId ? "Update" : "Save"}</button>
-                    </div>
-                </form>
+      <Modal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)} 
+        title={editingId ? "Edit Employee" : "Add New Employee"}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <Input label="First Name" name="firstName" value={formData.firstName} onChange={handleInputChange} required />
+                <Input label="Last Name" name="lastName" value={formData.lastName} onChange={handleInputChange} required />
             </div>
-        </div>
-      )}
+
+            <Input label="Work Email" type="email" name="email" value={formData.email} onChange={handleInputChange} required />
+            <Input label="Job Title" name="jobTitle" value={formData.jobTitle} onChange={handleInputChange} required />
+            <Input label="Monthly Salary (¤)" type="number" name="salary" value={formData.salary} onChange={handleInputChange} required />
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+                <Button variant="secondary" onClick={() => setShowModal(false)} type="button">Cancel</Button>
+                <Button type="submit">{editingId ? "Update" : "Save"}</Button>
+            </div>
+        </form>
+      </Modal>
 
       {/* DELETE CONFIRMATION MODAL */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-sm shadow-2xl text-center">
-                <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Delete Employee?</h3>
-                <p className="text-slate-400 mb-6">This action cannot be undone.</p>
-                <div className="flex justify-center gap-3">
-                    <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition">Cancel</button>
-                    <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition shadow-lg shadow-red-500/20">Delete</button>
-                </div>
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Employee?">
+        <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </div>
+            <p className="text-slate-400 mb-6">Do you really want to delete this employee? This process cannot be undone.</p>
+            <div className="flex justify-center gap-3">
+                <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+                <Button variant="danger" onClick={confirmDelete}>Delete Employee</Button>
             </div>
         </div>
-      )}
+      </Modal>
 
-      {/* PAYROLL CONFIRMATION MODAL (NEW) */}
-      {showPayrollModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-full max-w-sm shadow-2xl text-center">
-                <h3 className="text-xl font-bold text-white mb-2">Run Payroll</h3>
-                <p className="text-slate-400 mb-6">This will create pending expense transactions for all active employees based on their salary.</p>
-                
-                <div className="flex justify-center gap-3">
-                    <button 
-                        onClick={() => setShowPayrollModal(false)} 
-                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={confirmRunPayroll} 
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition shadow-lg shadow-emerald-500/20"
-                    >
-                        Confirm & Run
-                    </button>
-                </div>
+      {/* PAYROLL CONFIRMATION MODAL */}
+      <Modal isOpen={showPayrollModal} onClose={() => setShowPayrollModal(false)} title="Run Payroll?">
+        <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">??</span>
+            </div>
+            <p className="text-slate-400 mb-6">This will create pending expense transactions for all active employees based on their salary.</p>
+            
+            <div className="flex justify-center gap-3">
+                <Button variant="secondary" onClick={() => setShowPayrollModal(false)}>Cancel</Button>
+                <Button onClick={confirmRunPayroll}>Confirm & Run</Button>
             </div>
         </div>
-      )}
+      </Modal>
 
     </div>
   );
