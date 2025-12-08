@@ -55,5 +55,10 @@ public class TransactionController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/batch")
+    public ResponseEntity<List<TransactionDto>> createBatch(@RequestBody List<TransactionDto> requests) {
+        return ResponseEntity.ok(transactionService.createBatch(requests));
+    }
+
 
 }

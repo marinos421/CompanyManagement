@@ -12,6 +12,7 @@ import TasksPage from "./pages/Workforce/TaskPage";
 import EmployeeProfilePage from "./pages/Workforce/EmployeeProfilePage";
 import CalendarPage from "./pages/Calendar/CalendarPage";
 import ChatPage from "./pages/Chat/ChatPage";
+import LandingPage from "./pages/Auth/LandingPage";
 
 
 
@@ -31,7 +32,7 @@ function App() {
     <Router>
       <Routes>
         {/* Public Routes (Χωρίς Sidebar) */}
-        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 

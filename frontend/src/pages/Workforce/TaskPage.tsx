@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
+import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import TaskService, { Task } from "../../services/Workforce/task.service";
 import EmployeeService, { Employee } from "../../services/Workforce/employee.service";
 import AuthService from "../../services/Auth/auth.service";
 
 // Components
 import Button from "../../components/Button";
-import Input from "../../components/Input"; // (Θα χρειαστεί να προσθέσουμε TextArea support στο Input ή να φτιάξουμε ξεχωριστό, εδώ έβαλα απλό textarea με tailwind για τώρα)
-import Modal from "../../components/Modal";
+import Input from "../../components/Input";
 import Select from "../../components/Select";
-import StatusBadge from "../../components/StatusBadge";
+import Modal from "../../components/Modal";
+import TaskColumn from "../../components/Task/TaskCollumn";
+import ErrorNotification from "../../components/ErrorNotificationProps";
+import TaskDetailModal from "../../components/Task/TaskDetailModal"; // NEW COMPONENT
 
 const TasksPage = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -16,20 +19,25 @@ const TasksPage = () => {
   const [loading, setLoading] = useState(true);
   
   // Modals
-  const [showModal, setShowModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [idToDelete, setIdToDelete] = useState<number | null>(null);
-  
-  const role = AuthService.getUserRole();
-  const isAdmin = role === "COMPANY_ADMIN";
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const [formData, setFormData] = useState<Task>({
+  // Error Notification State
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showError, setShowError] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState<any>({
     title: "",
     description: "",
     dueDate: "",
-    status: "TODO",
     assignedToId: 0,
   });
+  const [files, setFiles] = useState<FileList | null>(null);
+
+  const role = AuthService.getUserRole();
+  const isAdmin = role === "COMPANY_ADMIN";
 
   useEffect(() => {
     loadData();
@@ -44,181 +52,192 @@ const TasksPage = () => {
         const empData = await EmployeeService.getAll();
         setEmployees(empData);
         if (empData.length > 0) {
-            setFormData(prev => ({ ...prev, assignedToId: empData[0].id! }));
+            setFormData((prev: any) => ({ ...prev, assignedToId: empData[0].id }));
         }
       }
     } catch (error) {
       console.error("Error loading data", error);
+      showErrorNotification("Failed to load data");
     } finally {
       setLoading(false);
     }
   };
 
+  // Helper to show error notifications
+  const showErrorNotification = (message: string) => {
+    setErrorMessage(message);
+    setShowError(true);
+  };
+
+  // --- DRAG AND DROP HANDLER ---
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    const taskId = parseInt(draggableId);
+    const newStatus = destination.droppableId; 
+
+    // Optimistic UI Update
+    const updatedTasks = tasks.map(t => 
+        t.id === taskId ? { ...t, status: newStatus as any } : t
+    );
+    setTasks(updatedTasks);
+
+    try {
+        await TaskService.update(taskId, newStatus);
+    } catch (error) {
+        showErrorNotification("Failed to move task");
+        loadData();
+    }
+  };
+
+  // --- CREATE TASK ---
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const data = new FormData();
+    data.append("title", formData.title);
+    data.append("description", formData.description);
+    data.append("dueDate", formData.dueDate);
+    data.append("assignedToId", formData.assignedToId);
+    
+    if (files) {
+        for (let i = 0; i < files.length; i++) {
+            data.append("files", files[i]);
+        }
+    }
+
     try {
-        await TaskService.create(formData);
-        setShowModal(false);
+        await TaskService.create(data);
+        setShowCreateModal(false);
+        setFormData({
+          title: "",
+          description: "",
+          dueDate: "",
+          assignedToId: employees[0]?.id || 0,
+        });
+        setFiles(null);
         loadData();
     } catch (error) {
-        alert("Failed to assign task.");
+        showErrorNotification("Failed to create task");
     }
   };
 
-  const handleStatusChange = async (taskId: number, newStatus: string) => {
+  // --- DELETE TASK ---
+  const handleDelete = async () => {
+      if (!selectedTask) return;
+      if (confirm("Are you sure you want to delete this task?")) {
+          try {
+              await TaskService.remove(selectedTask.id!);
+              setTasks(tasks.filter(t => t.id !== selectedTask.id));
+              setShowDetailModal(false);
+          } catch (error) {
+              showErrorNotification("Failed to delete task");
+          }
+      }
+  };
+
+  // --- RATING ---
+  const handleRate = async (stars: number) => {
+    if (!selectedTask || !isAdmin) return;
     try {
-        await TaskService.updateStatus(taskId, newStatus);
-        setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus as any } : t));
+        const updated = await TaskService.update(selectedTask.id!, undefined, stars);
+        setTasks(tasks.map(t => t.id === updated.id ? updated : t));
+        setSelectedTask(updated);
     } catch (error) {
-        alert("Failed to update status.");
+        showErrorNotification("Failed to rate task");
     }
   };
 
-  const handleDeleteClick = (id: number) => {
-    setIdToDelete(id);
-    setShowDeleteModal(true);
+  // --- COLUMNS DEFINITION ---
+  const columns = {
+    TODO: { title: "To Do", color: "bg-slate-700/50 border-slate-600" },
+    IN_PROGRESS: { title: "In Progress", color: "bg-blue-500/10 border-blue-500/30" },
+    DONE: { title: "Done", color: "bg-emerald-500/10 border-emerald-500/30" }
   };
-
-  const confirmDelete = async () => {
-    if (idToDelete) {
-        await TaskService.remove(idToDelete);
-        setTasks(tasks.filter(t => t.id !== idToDelete));
-        setShowDeleteModal(false);
-        setIdToDelete(null);
-    }
-  };
-
-  // Helper για τα Options του Select
-  const employeeOptions = employees.map(emp => ({
-      value: emp.id!,
-      label: `${emp.firstName} ${emp.lastName}`
-  }));
-
-  const statusOptions = [
-      { value: "TODO", label: "To Do" },
-      { value: "IN_PROGRESS", label: "In Progress" },
-      { value: "DONE", label: "Done" }
-  ];
 
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-8">
+    <div className="w-full h-full flex flex-col">
+      {/* ERROR NOTIFICATION */}
+      <ErrorNotification 
+        message={errorMessage}
+        isOpen={showError}
+        onClose={() => setShowError(false)}
+      />
+
+      <div className="flex justify-between items-center mb-6">
         <div>
-            <h2 className="text-3xl font-bold text-white">Tasks</h2>
-            <p className="text-slate-400">{isAdmin ? "Assign work to your team" : "My assigned tasks"}</p>
+            <h2 className="text-3xl font-bold text-white">Task Board</h2>
+            <p className="text-slate-400">Manage tasks via drag and drop</p>
         </div>
-        
         {isAdmin && (
-            <Button onClick={() => setShowModal(true)}>
-                + Assign Task
-            </Button>
+            <Button onClick={() => setShowCreateModal(true)}>+ New Task</Button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tasks.map(task => (
-            <div key={task.id} className="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-lg hover:border-slate-600 transition relative flex flex-col">
-                
-                <div className="flex justify-between items-start mb-4">
-                    <StatusBadge status={task.status} />
-                    <span className="text-xs text-slate-500">{task.dueDate}</span>
-                </div>
+      {/* KANBAN BOARD */}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="flex gap-6 overflow-x-auto pb-4 h-full">
+            {Object.entries(columns).map(([columnId, col]) => (
+                <TaskColumn 
+                    key={columnId}
+                    columnId={columnId}
+                    title={col.title}
+                    colorClass={col.color}
+                    tasks={tasks.filter(t => t.status === columnId)}
+                    onTaskClick={(task) => { setSelectedTask(task); setShowDetailModal(true); }}
+                />
+            ))}
+        </div>
+      </DragDropContext>
 
-                <h3 className="text-xl font-bold text-white mb-2">{task.title}</h3>
-                <p className="text-slate-400 text-sm mb-4 min-h-[40px] flex-1">{task.description}</p>
-
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white border border-slate-600">
-                        {task.assignedToName?.charAt(0)}
-                    </div>
-                    <span className="text-xs text-slate-400">Assigned to: <span className="text-white">{task.assignedToName}</span></span>
-                </div>
-
-                <div className="pt-4 border-t border-slate-700 flex justify-between items-center gap-2">
-                    {/* Mini Select for quick status update */}
-                    <div className="flex-1">
-                        <select 
-                            value={task.status}
-                            onChange={(e) => handleStatusChange(task.id!, e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 text-xs text-white rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer"
-                        >
-                            <option value="TODO">To Do</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="DONE">Done</option>
-                        </select>
-                    </div>
-
-                    {isAdmin && (
-                        <button 
-                            onClick={() => handleDeleteClick(task.id!)} 
-                            className="text-slate-500 hover:text-red-500 transition p-1 hover:bg-slate-700 rounded"
-                            title="Delete Task"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
-            </div>
-        ))}
-      </div>
-
-      {/* CREATE MODAL */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Assign New Task">
+      {/* CREATE TASK MODAL */}
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create Task">
         <form onSubmit={handleCreate} className="space-y-4">
-            <Input 
-                label="Task Title" 
-                value={formData.title} 
-                onChange={e => setFormData({...formData, title: e.target.value})} 
-                required 
-            />
+            <Input label="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
             
             <div>
                 <label className="block text-xs text-slate-400 mb-1 uppercase font-bold">Description</label>
-                <textarea 
-                    required 
-                    value={formData.description} 
-                    onChange={e => setFormData({...formData, description: e.target.value})} 
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 h-24 transition"
-                ></textarea>
+                <textarea className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white h-24 outline-none focus:border-blue-500"
+                    value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} required />
             </div>
 
-            <Input 
-                label="Due Date" 
-                type="date" 
-                value={formData.dueDate} 
-                onChange={e => setFormData({...formData, dueDate: e.target.value})} 
-                required 
-            />
+            <div className="grid grid-cols-2 gap-4">
+                <Input type="date" label="Due Date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} required />
+                
+                <Select 
+                    label="Assign To" 
+                    options={employees.map(e => ({ value: e.id!, label: `${e.firstName} ${e.lastName}` }))}
+                    value={formData.assignedToId}
+                    onChange={e => setFormData({...formData, assignedToId: e.target.value})}
+                />
+            </div>
 
-            <Select 
-                label="Assign To"
-                options={employeeOptions}
-                value={formData.assignedToId}
-                onChange={e => setFormData({...formData, assignedToId: Number(e.target.value)})}
-            />
+            <div>
+                <label className="block text-xs text-slate-400 mb-1 uppercase font-bold">Attachments</label>
+                <input type="file" multiple className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" 
+                    onChange={e => setFiles(e.target.files)} />
+            </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
-                <Button variant="secondary" onClick={() => setShowModal(false)} type="button">Cancel</Button>
-                <Button type="submit">Assign Task</Button>
+            <div className="flex justify-end gap-2 pt-4">
+                <Button variant="secondary" onClick={() => setShowCreateModal(false)} type="button">Cancel</Button>
+                <Button type="submit">Create Task</Button>
             </div>
         </form>
       </Modal>
 
-      {/* DELETE CONFIRMATION MODAL */}
-      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Task?">
-        <div className="text-center">
-            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            </div>
-            <p className="text-slate-400 mb-6">This action cannot be undone. Are you sure you want to delete this task?</p>
-            <div className="flex justify-center gap-3">
-                <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-                <Button variant="danger" onClick={confirmDelete}>Delete</Button>
-            </div>
-        </div>
-      </Modal>
+      {/* DETAIL MODAL */}
+      <TaskDetailModal
+        task={selectedTask}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        onRate={handleRate}
+        onDelete={handleDelete}
+        isAdmin={isAdmin}
+      />
+
     </div>
   );
 };

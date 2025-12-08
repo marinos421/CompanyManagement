@@ -3,8 +3,8 @@ import { Calendar, momentLocalizer, SlotInfo, Navigate, Views, View } from "reac
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
-import EventService, { CompanyEvent } from "../../services/calendar/event.service";
-import AuthService from "../../services/auth/auth.service";
+import EventService, { CompanyEvent } from "../../services/Calendar/event.service";
+import AuthService from "../../services/Auth/auth.service";
 
 // Components
 import Button from "../../components/Button";

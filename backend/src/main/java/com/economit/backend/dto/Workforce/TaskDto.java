@@ -1,11 +1,13 @@
 package com.economit.backend.dto.Workforce;
 
-import com.economit.backend.model.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
+import java.util.List;
+
+import com.economit.backend.model.Workforce.TaskStatus;
 
 @Data
 @Builder
@@ -17,8 +19,12 @@ public class TaskDto {
     private String description;
     private LocalDate dueDate;
     private TaskStatus status;
-    
-    // Employee info
+    private Integer rating;
+
     private Long assignedToId;
-    private String assignedToName; // "Giorgos Papadopoulos"
+    private String assignedToName;
+
+    // List of full attachment details
+    private List<AttachmentDto> attachments;
+
 }

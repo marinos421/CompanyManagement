@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.economit.backend.model.TransactionStatus;
 
 @Service
 @RequiredArgsConstructor
@@ -116,5 +117,26 @@ public class TransactionService {
         return transactions.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    @org.springframework.transaction.annotation.Transactional // Σημαντικό: Ή όλα ή τίποτα
+    public List<TransactionDto> createBatch(List<TransactionDto> requests) {
+        User user = getCurrentUser();
+        Company company = user.getCompany();
+
+        List<Transaction> transactions = requests.stream().map(req -> Transaction.builder()
+                .type(req.getType())
+                .amount(req.getAmount())
+                .date(req.getDate())
+                .category(req.getCategory())
+                .description(req.getDescription())
+                .status(req.getStatus() != null ? req.getStatus() : TransactionStatus.COMPLETED)
+                .company(company)
+                .build()
+        ).collect(Collectors.toList());
+
+        List<Transaction> saved = transactionRepository.saveAll(transactions);
+        
+        return saved.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 }

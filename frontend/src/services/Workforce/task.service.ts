@@ -9,8 +9,10 @@ export interface Task {
   description: string;
   dueDate: string;
   status: "TODO" | "IN_PROGRESS" | "DONE";
+  rating?: number; // 1-5
   assignedToId: number;
-  assignedToName?: string; // Για να το δείχνουμε στον πίνακα
+  assignedToName?: string;
+  attachments?: { id: number; fileName: string; fileType: string }[];
 }
 
 const getAuthHeader = () => {
@@ -26,16 +28,23 @@ const getAll = async () => {
   return response.data;
 };
 
-const create = async (data: Task) => {
-  const response = await axios.post(API_URL, data, { headers: getAuthHeader() });
+// Change: Accepts FormData
+const create = async (formData: FormData) => {
+  const response = await axios.post(API_URL, formData, {
+    headers: { ...getAuthHeader(), "Content-Type": "multipart/form-data" }
+  });
   return response.data;
 };
 
-// Ενημέρωση Status (π.χ. όταν ο υπάλληλος το τελειώσει)
-const updateStatus = async (id: number, status: string) => {
-  const response = await axios.patch(`${API_URL}/${id}/status`, null, {
+// Change: Accepts Rating
+const update = async (id: number, status?: string, rating?: number) => {
+  const params = new URLSearchParams();
+  if (status) params.append("status", status);
+  if (rating !== undefined) params.append("rating", rating.toString());
+
+  const response = await axios.patch(`${API_URL}/${id}`, null, {
     headers: getAuthHeader(),
-    params: { status } // Στέλνουμε το status ως query param
+    params: params
   });
   return response.data;
 };
@@ -47,7 +56,7 @@ const remove = async (id: number) => {
 const TaskService = {
   getAll,
   create,
-  updateStatus,
+  update,
   remove,
 };
 

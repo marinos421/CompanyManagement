@@ -57,12 +57,18 @@ const runPayroll = async () => {
   await axios.post(`${API_URL}/payroll`, {}, { headers: getAuthHeader() });
 };
 
+const createBatch = async (data: Transaction[]) => {
+  const response = await axios.post(`${API_URL}/batch`, data, { headers: getAuthHeader() });
+  return response.data;
+};
+
 const TransactionService = {
   getAll,
   create,
   remove,
   markCompleted,
   runPayroll,
+  createBatch,
 };
 
 export default TransactionService;

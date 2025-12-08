@@ -10,6 +10,8 @@ import Input from "../../components/Input";
 import Modal from "../../components/Modal";
 import Select from "../../components/Select";
 import StatusBadge from "../../components/StatusBadge";
+import ImportTransactionsModal from "../../components/ImportTransactionModal";
+import NotificationToast, { NotificationState } from "../../components/NotificationToast"; 
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF", "#FF4560"];
 const OVERVIEW_COLORS = ["#10b981", "#f43f5e"];
@@ -18,22 +20,26 @@ const TransactionsPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Export Dropdown State
+  // UI States
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [chartType, setChartType] = useState<"INCOME" | "EXPENSE" | "OVERVIEW">("OVERVIEW");
 
-  // Filter State
+  // Modal States
+  const [showModal, setShowModal] = useState(false); 
+  const [showDeleteModal, setShowDeleteModal] = useState(false); 
+  const [showImportModal, setShowImportModal] = useState(false); 
+  const [idToDelete, setIdToDelete] = useState<number | null>(null);
+
+  // Notification State
+  const [notification, setNotification] = useState<NotificationState | null>(null);
+
+  // Filters
   const [filters, setFilters] = useState({
     type: "",
     category: "",
     startDate: "",
     endDate: ""
   });
-
-  // Modal States
-  const [showModal, setShowModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [idToDelete, setIdToDelete] = useState<number | null>(null);
-  const [chartType, setChartType] = useState<"INCOME" | "EXPENSE" | "OVERVIEW">("OVERVIEW");
 
   const [formData, setFormData] = useState<Transaction>({
     type: "EXPENSE",
@@ -47,6 +53,8 @@ const TransactionsPage = () => {
   useEffect(() => {
     loadTransactions();
   }, []); 
+
+  // (Removed manual useEffect for timer - handled by component now)
 
   const loadTransactions = async () => {
     setLoading(true);
@@ -79,19 +87,59 @@ const TransactionsPage = () => {
     TransactionService.getAll().then(data => setTransactions(data));
   };
 
-  // --- EXPORT HANDLERS ---
   const handleExportCSV = () => {
     exportToCSV(transactions);
     setShowExportMenu(false);
+    setNotification({ message: "CSV downloaded successfully!", type: "success" });
   };
 
   const handleExportPDF = () => {
     const user = AuthService.getCurrentUser();
     exportToPDF(transactions, user?.companyName || "EconomIT");
     setShowExportMenu(false);
+    setNotification({ message: "PDF downloaded successfully!", type: "success" });
   };
 
-  // --- Logic ---
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name === "type") {
+        const newType = value as "INCOME" | "EXPENSE";
+        setFormData({ ...formData, type: newType, category: newType === "INCOME" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0] });
+    } else {
+        setFormData({ ...formData, [name]: value });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await TransactionService.create(formData);
+      setShowModal(false);
+      loadTransactions();
+      setFormData({ type: "EXPENSE", amount: 0, date: new Date().toISOString().split("T")[0], category: EXPENSE_CATEGORIES[0], description: "", status: "COMPLETED" });
+      setNotification({ message: "Transaction added successfully!", type: "success" });
+    } catch (error) {
+      setNotification({ message: "Failed to add transaction.", type: "error" });
+    }
+  };
+
+  const handleDeleteClick = (id: number) => { setIdToDelete(id); setShowDeleteModal(true); };
+  
+  const confirmDelete = async () => { 
+      if (idToDelete) { 
+          try {
+            await TransactionService.remove(idToDelete); 
+            setTransactions(transactions.filter(t => t.id !== idToDelete)); 
+            setNotification({ message: "Transaction deleted successfully", type: "success" });
+          } catch (error) {
+            setNotification({ message: "Failed to delete transaction", type: "error" });
+          } finally {
+            setShowDeleteModal(false); 
+            setIdToDelete(null); 
+          }
+      } 
+  };
+
   const completedTransactions = transactions.filter(t => t.status === "COMPLETED");
   const totalIncome = completedTransactions.filter(t => t.type === "INCOME").reduce((sum, t) => sum + t.amount, 0);
   const totalExpense = completedTransactions.filter(t => t.type === "EXPENSE").reduce((sum, t) => sum + t.amount, 0);
@@ -113,54 +161,33 @@ const TransactionsPage = () => {
     return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(amount);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (name === "type") {
-        const newType = value as "INCOME" | "EXPENSE";
-        setFormData({ ...formData, type: newType, category: newType === "INCOME" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0] });
-    } else {
-        setFormData({ ...formData, [name]: value });
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await TransactionService.create(formData);
-      setShowModal(false);
-      loadTransactions();
-      setFormData({ type: "EXPENSE", amount: 0, date: new Date().toISOString().split("T")[0], category: EXPENSE_CATEGORIES[0], description: "", status: "COMPLETED" });
-    } catch (error) {
-      alert("Failed to add transaction");
-    }
-  };
-
-  const handleDeleteClick = (id: number) => { setIdToDelete(id); setShowDeleteModal(true); };
-  const confirmDelete = async () => { if (idToDelete) { await TransactionService.remove(idToDelete); setTransactions(transactions.filter(t => t.id !== idToDelete)); setShowDeleteModal(false); setIdToDelete(null); } };
-
-  // --- OPTIONS FOR SELECTS ---
   const typeOptions = [
       { value: "ALL", label: "All Types" },
       { value: "INCOME", label: "Income" },
       { value: "EXPENSE", label: "Expense" }
   ];
-
+  
   const categoryOptions = [
       { value: "ALL", label: "All Categories" },
       ...[...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES].map(c => ({ value: c, label: c }))
   ];
-  
-  // Options for Modal (Create)
+
   const modalCategoryOptions = (formData.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => ({ value: c, label: c }));
+  
   const statusOptions = [
       { value: "COMPLETED", label: "Completed (Paid)" },
       { value: "PENDING", label: "Pending (Unpaid)" }
   ];
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 relative">
       
-      {/* Header & Buttons */}
+      {/* REUSABLE NOTIFICATION TOAST */}
+      <NotificationToast 
+        notification={notification} 
+        onClose={() => setNotification(null)} 
+      />
+
       <div className="flex justify-between items-center">
         <div>
             <h2 className="text-3xl font-bold text-white">Transactions</h2>
@@ -168,8 +195,6 @@ const TransactionsPage = () => {
         </div>
         
         <div className="flex gap-3 relative">
-            
-            {/* EXPORT BUTTON & MENU */}
             <div className="relative">
                 <Button variant="secondary" onClick={() => setShowExportMenu(!showExportMenu)}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -178,18 +203,30 @@ const TransactionsPage = () => {
                     Export
                 </Button>
                 
-                {/* Dropdown */}
                 {showExportMenu && (
-                    <div className="absolute right-0 mt-2 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
-                        <button onClick={handleExportPDF} className="w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 flex items-center gap-2">
-                            <span className="text-red-400">??</span> PDF Report
+                    <div className="absolute right-0 mt-2 w-44 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+                        <button onClick={handleExportPDF} className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 hover:text-white flex items-center gap-3 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            PDF Report
                         </button>
-                        <button onClick={handleExportCSV} className="w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 flex items-center gap-2">
-                            <span className="text-green-400">??</span> CSV (Excel)
+                        <button onClick={handleExportCSV} className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 hover:text-white flex items-center gap-3 transition border-t border-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m13.5 2.625v-17.1c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125z" />
+                            </svg>
+                            CSV (Excel)
                         </button>
                     </div>
                 )}
             </div>
+
+            <Button variant="secondary" onClick={() => setShowImportModal(true)}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                Import
+            </Button>
 
             <Button onClick={() => setShowModal(true)}>
                 + Add Transaction
@@ -197,7 +234,6 @@ const TransactionsPage = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
             <p className="text-slate-400 text-xs uppercase font-semibold">Total Income</p>
@@ -215,13 +251,8 @@ const TransactionsPage = () => {
         </div>
       </div>
 
-      {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Transaction List with Integrated Filters */}
         <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl flex flex-col h-full">
-            
-            {/* Header + Filters */}
             <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex flex-col gap-4">
                 <div className="flex justify-between items-center">
                     <h3 className="font-bold text-white text-lg">Transaction List</h3>
@@ -254,7 +285,6 @@ const TransactionsPage = () => {
                 </div>
             </div>
 
-            {/* Table */}
             <div className="overflow-x-auto flex-1">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-700/20 text-slate-400 text-xs uppercase sticky top-0">
@@ -300,7 +330,6 @@ const TransactionsPage = () => {
             </div>
         </div>
 
-        {/* Analytics Chart */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-xl p-6 flex flex-col items-center h-fit sticky top-6">
             <div className="flex justify-between items-center w-full mb-4">
                 <h3 className="font-bold text-white">Analytics</h3>
@@ -334,25 +363,19 @@ const TransactionsPage = () => {
 
       </div>
 
-      {/* CREATE MODAL */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Add Transaction">
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-2 bg-slate-700 p-1 rounded-lg">
-                <button type="button" onClick={() => setFormData({...formData, type: "INCOME", category: INCOME_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Income</button>
-                <button type="button" onClick={() => setFormData({...formData, type: "EXPENSE", category: EXPENSE_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition ${formData.type === 'EXPENSE' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Expense</button>
+                <button type="button" onClick={() => setFormData({...formData, type: "INCOME", category: INCOME_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition w-full ${formData.type === 'INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Income</button>
+                <button type="button" onClick={() => setFormData({...formData, type: "EXPENSE", category: EXPENSE_CATEGORIES[0]})} className={`py-2 rounded-md text-sm font-bold transition w-full ${formData.type === 'EXPENSE' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Expense</button>
             </div>
-            
             <div className="grid grid-cols-2 gap-4">
                 <Input label="Amount (¤)" type="number" name="amount" value={formData.amount} onChange={handleInputChange} />
                 <Input label="Date" type="date" name="date" value={formData.date} onChange={handleInputChange} />
             </div>
-
             <Select label="Category" name="category" value={formData.category} options={modalCategoryOptions} onChange={handleInputChange} />
-            
             <Input label="Description" name="description" value={formData.description} onChange={handleInputChange} placeholder="Optional notes..." />
-            
             <Select label="Status" name="status" value={formData.status} options={statusOptions} onChange={handleInputChange} />
-
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
                 <Button variant="secondary" onClick={() => setShowModal(false)} type="button">Cancel</Button>
                 <Button type="submit">Save</Button>
@@ -360,7 +383,6 @@ const TransactionsPage = () => {
         </form>
       </Modal>
 
-      {/* DELETE CONFIRMATION MODAL */}
       <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete?">
         <div className="text-center">
             <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4">
@@ -374,6 +396,14 @@ const TransactionsPage = () => {
         </div>
       </Modal>
 
+      <ImportTransactionsModal 
+        isOpen={showImportModal} 
+        onClose={() => setShowImportModal(false)} 
+        onSuccess={() => {
+            loadTransactions();
+            setNotification({ message: "Transactions imported successfully!", type: "success" });
+        }}
+      />
     </div>
   );
 };
